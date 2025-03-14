@@ -12,7 +12,7 @@ chat_future(
   max_chunk_attempts = 3L,
   max_retries = 3L,
   initial_delay = 20,
-  max_delay = 60,
+  max_delay = 80,
   backoff_factor = 2,
   timeout = 60,
   beep = TRUE,
@@ -27,7 +27,7 @@ chat_future(
 \item{plan}{Processing strategy to use: "multisession" for separate R sessions
 or "multicore" for forked processes (default: "multisession")}
 
-\item{chunk_size}{Number of prompts to process in parallel at a time (default: 10\% of the number of prompts)}
+\item{chunk_size}{Number of prompts to process in parallel at a time (default: number of prompts / 10)}
 
 \item{max_chunk_attempts}{Maximum number of retry attempts for failed chunks (default: 3L)}
 
@@ -35,7 +35,7 @@ or "multicore" for forked processes (default: "multisession")}
 
 \item{initial_delay}{Initial delay in seconds before first retry (default: 20)}
 
-\item{max_delay}{Maximum delay in seconds between retries (default: 60)}
+\item{max_delay}{Maximum delay in seconds between retries (default: 80)}
 
 \item{backoff_factor}{Factor to multiply delay by after each retry (default: 2)}
 
@@ -53,10 +53,9 @@ A batch object (S7 class) containing:
 \item completed: Number of successfully processed prompts
 \item state_path: Path where batch state is saved
 \item type_spec: Type specification used for structured data
-\item texts: Function to extract text responses
+\item texts: Function to extract text responses (includes structured data when a type specification is provided)
 \item chats: Function to extract chat objects
 \item progress: Function to get processing status
-\item structured_data: Function to extract structured data (if \code{type_spec} was provided)
 }
 }
 \description{
@@ -79,7 +78,7 @@ batch <- chat$batch(list(
 # Check the progress if interrupted
 batch$progress()
 
-# Return the responses as a vector or list
+# Return the responses
 batch$texts()
 
 # Return the chat objects

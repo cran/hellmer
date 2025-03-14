@@ -10,6 +10,7 @@ batch(
   completed = integer(0),
   state_path = character(0),
   type_spec = NULL,
+  judgements = integer(0),
   echo = character(0),
   input_type = character(0),
   max_retries = integer(0),
@@ -32,6 +33,8 @@ batch(
 \item{state_path}{Path to save state file}
 
 \item{type_spec}{Type specification for structured data extraction}
+
+\item{judgements}{Number of judgements in a \code{batch_judge()} workflow (1 = initial extract + 1 judgement, 2 = initial extract + 2 judgements, etc.)}
 
 \item{echo}{Level of output to display ("none", "text", "all")}
 
@@ -56,10 +59,9 @@ batch(
 \value{
 Returns an S7 class object of class "batch" that represents a collection of prompts and their responses from chat models. The object contains all input parameters as properties and provides methods for:
 \itemize{
-\item Extracting text responses via \code{texts()}
+\item Extracting text responses via \code{texts()} (includes structured data when a type specification is provided)
 \item Accessing full chat objects via \code{chats()}
 \item Tracking processing progress via \code{progress()}
-\item Extracting structured data via \code{structured_data()} when a type specification is provided
 }
 The batch object manages prompt processing, tracks completion status, and handles retries for failed requests.
 }

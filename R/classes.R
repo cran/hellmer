@@ -1,8 +1,8 @@
-#' Extract texts from a batch result
+#' Extract texts or structured data from a batch result
 #' @name texts
 #' @param x A batch object
 #' @param ... Additional arguments passed to methods
-#' @return A character vector or list of text responses
+#' @return A character vector or list of text responses. If a type specification was provided to the batch, structured data objects will be returned instead.
 #' @examplesIf ellmer::has_credentials("openai")
 #' # Create a chat processor
 #' chat <- chat_sequential(chat_openai())
@@ -22,6 +22,7 @@ texts <- S7::new_generic("texts", "x")
 #' Extract chat objects from a batch result
 #' @name chats
 #' @param x A batch object
+#' @param ... Additional arguments
 #' @return A list of chat objects
 #' @examplesIf ellmer::has_credentials("openai")
 #' # Create a chat processor
@@ -60,32 +61,6 @@ chats <- S7::new_generic("chats", "x")
 #' @export
 progress <- S7::new_generic("progress", "x")
 
-#' Extract structured data from a batch result
-#' @name structured_data
-#' @param x A batch object
-#' @param ... Additional arguments passed to methods
-#' @return A list of structured data objects
-#' @examplesIf ellmer::has_credentials("openai")
-#' # Create a chat processor with type specification
-#' book_type <- type_object(
-#'   title = type_string(),
-#'   author = type_string(),
-#'   year = type_integer()
-#' )
-#'
-#' # Create chat processor
-#' chat <- chat_sequential(chat_openai())
-#'
-#' # Process a batch of prompts with type spec
-#' batch <- chat$batch(list(
-#'   "Return info about 1984 by George Orwell",
-#'   "Return info about Brave New World by Aldous Huxley"
-#' ), type_spec = book_type)
-#'
-#' # Extract structured data
-#' batch$structured_data()
-#' @export
-structured_data <- S7::new_generic("structured_data", "x")
 
 #' Batch class for managing chat processing
 #' @name batch
@@ -94,6 +69,7 @@ structured_data <- S7::new_generic("structured_data", "x")
 #' @param completed Integer indicating number of completed prompts
 #' @param state_path Path to save state file
 #' @param type_spec Type specification for structured data extraction
+#' @param judgements Number of judgements in a `batch_judge()` workflow (1 = initial extract + 1 judgement, 2 = initial extract + 2 judgements, etc.)
 #' @param echo Level of output to display ("none", "text", "all")
 #' @param input_type Type of input ("vector" or "list")
 #' @param max_retries Maximum number of retry attempts
@@ -106,10 +82,9 @@ structured_data <- S7::new_generic("structured_data", "x")
 #' @param state Internal state tracking
 #' @return Returns an S7 class object of class "batch" that represents a collection of prompts and their responses from chat models. The object contains all input parameters as properties and provides methods for:
 #' \itemize{
-#'   \item Extracting text responses via \code{texts()}
+#'   \item Extracting text responses via \code{texts()} (includes structured data when a type specification is provided)
 #'   \item Accessing full chat objects via \code{chats()}
 #'   \item Tracking processing progress via \code{progress()}
-#'   \item Extracting structured data via \code{structured_data()} when a type specification is provided
 #' }
 #' The batch object manages prompt processing, tracks completion status, and handles retries for failed requests.
 #' @examplesIf ellmer::has_credentials("openai")
@@ -171,6 +146,18 @@ batch <- S7::new_class(
           if (!inherits(value, c("ellmer::TypeObject", "ellmer::Type", "ellmer::TypeArray"))) {
             return("@type_spec must be an ellmer type specification (created with type_object(), type_array(), etc.) or NULL")
           }
+        }
+        NULL
+      }
+    ),
+    judgements = S7::new_property(
+      class = S7::class_integer,
+      validator = function(value) {
+        if (length(value) != 1) {
+          "@judgements must be a single integer"
+        }
+        if (value < 0) {
+          "@judgements must be non-negative"
         }
         NULL
       }
@@ -307,28 +294,8 @@ batch <- S7::new_class(
   }
 )
 
-#' Extract structured data from a batch
-#' @name structured_data.batch
-#' @param x A batch object
-#' @return List of structured data
-#' @importFrom cli cli_alert_warning
-#' @importFrom purrr map
-S7::method(structured_data, batch) <- function(x) {
-  if (is.null(x@type_spec)) {
-    cli_alert_warning("No type specification provided for structured data extraction")
-    return(NULL)
-  }
-  responses <- x@responses[seq_len(x@completed)]
-  map(responses, "structured_data")
-}
 
-#' Extract text responses from a batch
-#' @name texts.batch
-#' @param x A batch object
-#' @param flatten Logical; whether to flatten structured data into a single string (default: TRUE)
-#' @return A character vector (if original prompts were supplied as a vector) or
-#'   a list of response texts (if original prompts were supplied as a list)
-#' @importFrom purrr map map_lgl
+#' @keywords internal
 S7::method(texts, batch) <- function(x, flatten = TRUE) {
   responses <- x@responses[seq_len(x@completed)]
 
@@ -357,22 +324,13 @@ S7::method(texts, batch) <- function(x, flatten = TRUE) {
   }
 }
 
-#' Extract chat objects from a batch result
-#' @name chats
-#' @param x A batch object
-#' @param ... Additional arguments passed to methods
-#' @return A list of chat objects
-#' @export
+#' @keywords internal
 S7::method(chats, batch) <- function(x) {
   responses <- x@responses[seq_len(x@completed)]
   map(responses, "chat")
 }
 
-#' Extract progress information from a batch
-#' @name progress.batch
-#' @param x A batch object
-#' @return A list containing progress details
-#' @importFrom cli cli_alert_warning
+#' @keywords internal
 S7::method(progress, batch) <- function(x) {
   list(
     total_prompts = length(x@prompts),

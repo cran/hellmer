@@ -9,7 +9,7 @@
 #'        "text" for response text only, or "all" for full interaction (default: "none")
 #' @param max_retries Maximum number of retry attempts per prompt (default: 3L)
 #' @param initial_delay Initial delay in seconds before first retry (default: 20)
-#' @param max_delay Maximum delay in seconds between retries (default: 60)
+#' @param max_delay Maximum delay in seconds between retries (default: 80)
 #' @param backoff_factor Factor to multiply delay by after each retry (default: 2)
 #' @param timeout Maximum time in seconds to wait for each prompt response (default: 60)
 #' @param beep Logical to play a sound on batch completion, interruption, and error (default: TRUE)
@@ -21,10 +21,9 @@
 #'     \item completed: Number of successfully processed prompts
 #'     \item state_path: Path where batch state is saved
 #'     \item type_spec: Type specification used for structured data
-#'     \item texts: Function to extract text responses
+#'     \item texts: Function to extract text responses (includes structured data when a type specification is provided)
 #'     \item chats: Function to extract chat objects
 #'     \item progress: Function to get processing status
-#'     \item structured_data: Function to extract structured data (if `type_spec` was provided)
 #'   }
 #' @examplesIf ellmer::has_credentials("openai")
 #' # Create a sequential chat processor
@@ -40,7 +39,7 @@
 #' # Check the progress if interrupted
 #' batch$progress()
 #'
-#' # Return the responses as a vector or list
+#' # Return the responses
 #' batch$texts()
 #'
 #' # Return the chat objects
@@ -51,13 +50,13 @@ chat_sequential <- function(
     echo = "none",
     max_retries = 3L,
     initial_delay = 20,
-    max_delay = 60,
+    max_delay = 80,
     backoff_factor = 2,
     timeout = 60,
     beep = TRUE,
     ...) {
   if (is.null(chat_model)) {
-    stop("Define a ellmer chat model (e.g., chat_openai or chat_claude)")
+    stop("Define an ellmer chat model (e.g., chat_openai or chat_claude)")
   }
 
   chat_env <- new.env(parent = emptyenv())
@@ -82,7 +81,16 @@ chat_sequential <- function(
 
   chat_env$batch <- function(prompts,
                              type_spec = NULL,
+                             judgements = 0,
                              state_path = tempfile("chat_", fileext = ".rds")) {
+    if (judgements > 0 && is.null(type_spec)) {
+      cli::cli_alert_warning("Judgements parameter ({judgements}) specified but will be ignored without a type_spec")
+    }
+
+    if (!is.null(type_spec) && judgements < 0) {
+      cli::cli_abort("Number of judgements must be non-negative")
+    }
+
     if (is.null(chat_env$last_state_path)) {
       chat_env$last_state_path <- state_path
     } else {
@@ -93,6 +101,7 @@ chat_sequential <- function(
       chat_obj = chat_env$chat_model,
       prompts = prompts,
       type_spec = type_spec,
+      judgements = judgements,
       state_path = state_path,
       echo = chat_env$echo,
       max_retries = chat_env$max_retries,
@@ -118,11 +127,11 @@ chat_sequential <- function(
 #' @param workers Number of parallel workers to use (default: number of CPU cores)
 #' @param plan Processing strategy to use: "multisession" for separate R sessions
 #'        or "multicore" for forked processes (default: "multisession")
-#' @param chunk_size Number of prompts to process in parallel at a time (default: 10% of the number of prompts)
+#' @param chunk_size Number of prompts to process in parallel at a time (default: number of prompts / 10)
 #' @param max_chunk_attempts Maximum number of retry attempts for failed chunks (default: 3L)
 #' @param max_retries Maximum number of retry attempts per prompt (default: 3L)
 #' @param initial_delay Initial delay in seconds before first retry (default: 20)
-#' @param max_delay Maximum delay in seconds between retries (default: 60)
+#' @param max_delay Maximum delay in seconds between retries (default: 80)
 #' @param backoff_factor Factor to multiply delay by after each retry (default: 2)
 #' @param timeout Maximum time in seconds to wait for each prompt response (default: 2)
 #' @param beep Logical to play a sound on batch completion, interruption, and error (default: TRUE)
@@ -134,10 +143,9 @@ chat_sequential <- function(
 #'     \item completed: Number of successfully processed prompts
 #'     \item state_path: Path where batch state is saved
 #'     \item type_spec: Type specification used for structured data
-#'     \item texts: Function to extract text responses
+#'     \item texts: Function to extract text responses (includes structured data when a type specification is provided)
 #'     \item chats: Function to extract chat objects
 #'     \item progress: Function to get processing status
-#'     \item structured_data: Function to extract structured data (if `type_spec` was provided)
 #'   }
 #' @examplesIf ellmer::has_credentials("openai")
 #' # Create a parallel chat processor
@@ -153,7 +161,7 @@ chat_sequential <- function(
 #' # Check the progress if interrupted
 #' batch$progress()
 #'
-#' # Return the responses as a vector or list
+#' # Return the responses
 #' batch$texts()
 #'
 #' # Return the chat objects
@@ -167,13 +175,13 @@ chat_future <- function(
     max_chunk_attempts = 3L,
     max_retries = 3L,
     initial_delay = 20,
-    max_delay = 60,
+    max_delay = 80,
     backoff_factor = 2,
     timeout = 60,
     beep = TRUE,
     ...) {
   if (is.null(chat_model)) {
-    stop("Define a ellmer chat_model (e.g., chat_openai or chat_claude)")
+    stop("Define an ellmer chat_model (e.g., chat_openai or chat_claude)")
   }
 
   plan <- match.arg(plan, choices = c("multisession", "multicore"))
@@ -202,8 +210,17 @@ chat_future <- function(
 
   chat_env$batch <- function(prompts,
                              type_spec = NULL,
+                             judgements = 0,
                              state_path = tempfile("chat_", fileext = ".rds"),
                              chunk_size = chat_env$chunk_size) {
+    if (judgements > 0 && is.null(type_spec)) {
+      cli::cli_alert_warning("Judgements parameter ({judgements}) specified but will be ignored without a type_spec")
+    }
+
+    if (!is.null(type_spec) && judgements < 0) {
+      cli::cli_abort("Number of judgements must be non-negative")
+    }
+
     if (is.null(chat_env$last_state_path)) {
       chat_env$last_state_path <- state_path
     } else {
@@ -214,6 +231,7 @@ chat_future <- function(
       chat_obj = chat_env$chat_model,
       prompts = prompts,
       type_spec = type_spec,
+      judgements = judgements,
       state_path = state_path,
       workers = chat_env$workers,
       chunk_size = chunk_size,
