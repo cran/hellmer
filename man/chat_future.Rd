@@ -4,58 +4,25 @@
 \alias{chat_future}
 \title{Process a batch of prompts in parallel}
 \usage{
-chat_future(
-  chat_model = NULL,
-  workers = parallel::detectCores(),
-  plan = "multisession",
-  chunk_size = NULL,
-  max_chunk_attempts = 3L,
-  max_retries = 3L,
-  initial_delay = 20,
-  max_delay = 80,
-  backoff_factor = 2,
-  timeout = 60,
-  beep = TRUE,
-  ...
-)
+chat_future(chat_model = NULL, ...)
 }
 \arguments{
-\item{chat_model}{ellmer chat model function or object (e.g., \code{ellmer::chat_claude})}
-
-\item{workers}{Number of parallel workers to use (default: number of CPU cores)}
-
-\item{plan}{Processing strategy to use: "multisession" for separate R sessions
-or "multicore" for forked processes (default: "multisession")}
-
-\item{chunk_size}{Number of prompts to process in parallel at a time (default: number of prompts / 10)}
-
-\item{max_chunk_attempts}{Maximum number of retry attempts for failed chunks (default: 3L)}
-
-\item{max_retries}{Maximum number of retry attempts per prompt (default: 3L)}
-
-\item{initial_delay}{Initial delay in seconds before first retry (default: 20)}
-
-\item{max_delay}{Maximum delay in seconds between retries (default: 80)}
-
-\item{backoff_factor}{Factor to multiply delay by after each retry (default: 2)}
-
-\item{timeout}{Maximum time in seconds to wait for each prompt response (default: 2)}
-
-\item{beep}{Logical to play a sound on batch completion, interruption, and error (default: TRUE)}
+\item{chat_model}{ellmer chat model object or function (e.g., \code{chat_openai()})}
 
 \item{...}{Additional arguments passed to the underlying chat model (e.g., \code{system_prompt})}
 }
 \value{
 A batch object (S7 class) containing:
 \itemize{
-\item prompts: Original input prompts
-\item responses: Raw response data for completed prompts
-\item completed: Number of successfully processed prompts
-\item state_path: Path where batch state is saved
-\item type_spec: Type specification used for structured data
-\item texts: Function to extract text responses (includes structured data when a type specification is provided)
-\item chats: Function to extract chat objects
-\item progress: Function to get processing status
+\item \strong{prompts}: Original input prompts
+\item \strong{responses}: Raw response data for completed prompts
+\item \strong{completed}: Number of successfully processed prompts
+\item \strong{state_path}: Path where batch state is saved
+\item \strong{type_spec}: Type specification used for structured data
+\item \strong{texts}: Function to extract text responses or structured data
+\item \strong{chats}: Function to extract chat objects
+\item \strong{progress}: Function to get processing status
+\item \strong{batch}: Function to process a batch of prompts
 }
 }
 \description{
@@ -63,17 +30,39 @@ Processes a batch of chat prompts using parallel workers.
 Splits prompts into chunks for processing while maintaining state.
 For sequential processing, use \code{chat_sequential()}.
 }
+\section{Batch Method}{
+
+This function provides access to the \code{batch()} method for parallel processing of prompts.
+See \code{?batch.future_chat} for full details of the method and its parameters.
+}
+
 \examples{
 \dontshow{if (ellmer::has_credentials("openai")) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
-# Create a parallel chat processor
+# Create a parallel chat processor with an object
+chat <- chat_future(chat_openai(system_prompt = "Reply concisely"))
+
+# Or a function
 chat <- chat_future(chat_openai, system_prompt = "Reply concisely, one sentence")
 
 # Process a batch of prompts in parallel
-batch <- chat$batch(list(
-  "What is R?",
-  "Explain base R versus tidyverse",
-  "Explain vectors, lists, and data frames"
-))
+batch <- chat$batch(
+  list(
+    "What is R?",
+    "Explain base R versus tidyverse",
+    "Explain vectors, lists, and data frames"
+  ),
+  chunk_size = 3
+)
+
+# Process batch with echo enabled (when progress is disabled)
+batch <- chat$batch(
+  list(
+    "What is R?",
+    "Explain base R versus tidyverse"
+  ),
+  progress = FALSE,
+  echo = TRUE
+)
 
 # Check the progress if interrupted
 batch$progress()

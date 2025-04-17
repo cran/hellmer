@@ -2,7 +2,7 @@
 % Please edit documentation in R/classes.R
 \name{batch}
 \alias{batch}
-\title{Batch class for managing chat processing}
+\title{Batch result class for managing chat processing results}
 \usage{
 batch(
   prompts = list(),
@@ -11,7 +11,7 @@ batch(
   state_path = character(0),
   type_spec = NULL,
   judgements = integer(0),
-  echo = character(0),
+  progress = logical(0),
   input_type = character(0),
   max_retries = integer(0),
   initial_delay = integer(0),
@@ -20,6 +20,8 @@ batch(
   chunk_size = integer(0),
   workers = integer(0),
   plan = character(0),
+  beep = logical(0),
+  echo = logical(0),
   state = list()
 )
 }
@@ -36,7 +38,7 @@ batch(
 
 \item{judgements}{Number of judgements in a \code{batch_judge()} workflow (1 = initial extract + 1 judgement, 2 = initial extract + 2 judgements, etc.)}
 
-\item{echo}{Level of output to display ("none", "text", "all")}
+\item{progress}{Whether to show progress bars (default: TRUE)}
 
 \item{input_type}{Type of input ("vector" or "list")}
 
@@ -54,6 +56,10 @@ batch(
 
 \item{plan}{Parallel backend plan}
 
+\item{beep}{Play sound on completion (default: TRUE)}
+
+\item{echo}{Whether to echo messages during processing (default: FALSE)}
+
 \item{state}{Internal state tracking}
 }
 \value{
@@ -66,7 +72,7 @@ Returns an S7 class object of class "batch" that represents a collection of prom
 The batch object manages prompt processing, tracks completion status, and handles retries for failed requests.
 }
 \description{
-Batch class for managing chat processing
+Batch result class for managing chat processing results
 }
 \examples{
 \dontshow{if (ellmer::has_credentials("openai")) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}

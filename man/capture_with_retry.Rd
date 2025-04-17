@@ -7,14 +7,14 @@
 capture_with_retry(
   original_chat,
   prompt,
-  type_spec = NULL,
-  echo = "text",
-  judgements = 0,
-  max_retries = 3L,
-  initial_delay = 1,
-  max_delay = 32,
-  backoff_factor = 2,
-  timeout = 60
+  type_spec,
+  judgements,
+  max_retries,
+  initial_delay,
+  max_delay,
+  backoff_factor,
+  echo,
+  ...
 )
 }
 \arguments{
@@ -24,9 +24,7 @@ capture_with_retry(
 
 \item{type_spec}{Type specification for structured data}
 
-\item{echo}{Echo level ("none", "text", "all")}
-
-\item{judgements}{Number of judgements (1 = initial extract + 1 judgement, 2 = initial extract + 2 judgements, etc.)}
+\item{judgements}{Number of judgements for structured data extraction resulting in refined data}
 
 \item{max_retries}{Maximum number of retry attempts}
 
@@ -35,8 +33,6 @@ capture_with_retry(
 \item{max_delay}{Maximum delay in seconds between retries}
 
 \item{backoff_factor}{Factor to multiply delay by after each retry}
-
-\item{timeout}{Timeout in seconds}
 }
 \value{
 List containing response information

@@ -12,13 +12,14 @@ process_chunks(
   judgements,
   pb,
   state_path,
-  echo,
+  progress,
   beep,
-  timeout = 60,
-  max_retries = 3L,
-  initial_delay = 1,
-  max_delay = 60,
-  backoff_factor = 2
+  max_retries,
+  initial_delay,
+  max_delay,
+  backoff_factor,
+  echo,
+  ...
 )
 }
 \arguments{
@@ -30,17 +31,15 @@ process_chunks(
 
 \item{type_spec}{Type specification for structured data extraction}
 
-\item{judgements}{Number of judgements (1 = initial extract + 1 judgement, 2 = initial extract + 2 judgements, etc.)}
+\item{judgements}{Number of judgements for structured data extraction resulting in refined data}
 
 \item{pb}{Progress bar object}
 
 \item{state_path}{Path to save intermediate state}
 
-\item{echo}{Level of output to display ("none", "text", "all")}
+\item{progress}{Whether to show progress bars}
 
 \item{beep}{Logical indicating whether to play sounds}
-
-\item{timeout}{Maximum time in seconds to wait per prompt}
 
 \item{max_retries}{Maximum number of retry attempts}
 

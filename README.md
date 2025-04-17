@@ -1,18 +1,12 @@
 # hellmer <img src="man/figures/hellmer-hex.png" align="right" width="140"/>
 
-`hellmer` enables sequential or parallel batch processing for [chat models](https://ellmer.tidyverse.org/reference/index.html) supported by `ellmer`.
+[![CRAN status](https://www.r-pkg.org/badges/version/hellmer)](https://CRAN.R-project.org/package=hellmer) [![R-CMD-check](https://github.com/dylanpieper/hellmer/actions/workflows/testthat.yml/badge.svg)](https://github.com/dylanpieper/hellmer/actions/workflows/testthat.yml)
 
-## Overview
+hellmer makes it easy to batch process large language model chats using [ellmer](https://ellmer.tidyverse.org). Process many chats sequentially or in parallel and use ellmer features such as [tooling](https://ellmer.tidyverse.org/articles/tool-calling.html) and [structured data extraction](https://ellmer.tidyverse.org/articles/structured-data.html).
 
-Process multiple chat interactions with:
+✅ hellmer processes many chats synchronously and supports streaming responses
 
--   [Tooling](https://ellmer.tidyverse.org/articles/tool-calling.html) and [structured data extraction](https://ellmer.tidyverse.org/articles/structured-data.html)
--   State persistence and recovery
--   Progress tracking
--   Configurable output verbosity
--   Automatic retry with backoff
--   Timeout handling
--   Sound notifications
+❌ hellmer does NOT support asynchronous batch APIs (for example, see [OpenAI's Batch API](https://platform.openai.com/docs/guides/batch))
 
 ## Installation
 
@@ -24,7 +18,7 @@ install.packages("hellmer")
 
 ## Setup API Keys
 
-`ellmer` will look for API keys in your environmental variables. I recommend the `usethis` package to setup API keys in your `.Renviron` such as `OPENAI_API_KEY=your-key`.
+API keys allow access to chat models and are stored as environmental variables. I recommend the `usethis` package to setup API keys in your `.Renviron` such as `OPENAI_API_KEY=your-key`.
 
 ``` r
 usethis::edit_r_environ(scope = c("user", "project"))
@@ -32,28 +26,33 @@ usethis::edit_r_environ(scope = c("user", "project"))
 
 ## Basic Usage
 
+For the following examples, define a chat object to reuse across batches.
+
+``` r
+openai <- chat_openai(system_prompt = "Reply concisely, one sentence")
+```
+
 ### Sequential Processing
+
+Sequential processing uses the current R process to call one chat at a time and save the data to the disk.
 
 ``` r
 library(hellmer)
 
-chat <- chat_sequential(
-  chat_openai, 
-  system_prompt = "Reply concisely, one sentence"
-)
+chat <- chat_sequential(openai)
 
 prompts <- list(
   "What is R?",
   "Explain base R versus tidyverse"
 )
 
-result <- chat$batch(prompts)
+batch <- chat$batch(prompts)
 ```
 
-Access the results:
+Access the batch results:
 
 ``` r
-result$progress()
+batch$progress()
 #> $total_prompts
 #> [1] 2
 #> 
@@ -69,45 +68,56 @@ result$progress()
 #> $state_path
 #> [1] "/var/folders/.../chat_c5383b1279ae.rds"
 
-result$texts()
+batch$texts()
 #> [[1]]
-#> [1] "R is a programming language and software environment used for 
-#> statistical computing, data analysis, and graphical representation."
+#> [1] "R is a programming language and software environment primarily used for 
+#> statistical computing and data analysis."
 #> 
 #> [[2]]
-#> [1] "Base R refers to the original set of R functions and packages, 
-#> while tidyverse is a collection of R packages designed for data science
-#> that offer a more consistent and readable syntax."
+#> [1] "Base R refers to the R language's core packages and functionalities, 
+#> whereas Tidyverse is a collection of R packages designed for data science 
+#> that provides a more intuitive and consistent syntax."
 
-result$chats()
+batch$chats()
 #> [[1]]
-#> <Chat turns=3 tokens=22/21>
-#>  ── system ────────────────────────────────────────────────────────────
+#> <Chat OpenAI/gpt-4o turns=3 tokens=22/18>
+#> ── system [0] ───────────────────────────────────────────────────────────────
 #> Reply concisely, one sentence
-#> ── user ───────────────────────────────────────────────────────────────
+#> ── user [22] ────────────────────────────────────────────────────────────────
 #> What is R?
-#> ── assistant ──────────────────────────────────────────────────────────
-#> R is a programming language and software environment used for 
-#> statistical computing, data analysis, and graphical representation.
-#> ...
+#> ── assistant [18] ───────────────────────────────────────────────────────────
+#> R is a programming language and software environment primarily used for
+#> statistical computing and data analysis.
+
+#> [[2]]
+#> <Chat OpenAI/gpt-4o turns=3 tokens=24/37>
+#> ── system [0] ───────────────────────────────────────────────────────────────
+#> Reply concisely, one sentence
+#> ── user [24] ────────────────────────────────────────────────────────────────
+#> Explain base R versus tidyverse
+#> ── assistant [37] ───────────────────────────────────────────────────────────
+#> Base R refers to the R language's core packages and functionalities, whereas 
+#> Tidyverse is a collection of R packages designed for data science 
+#> that provides a more intuitive and consistent syntax.
 ```
 
 ### Parallel Processing
 
+Parallel processing spins up multiple R processes, or parallel workers, to chat at the same time.
+
+By default, the upper limit for number of `workers` = `parallel::detectCores()`, and the number of prompts to process at a time is `chunk_size` = `parallel::detectCores() * 5`. Each chat in a chunk is distributed across the available R processes. When a chunk is finished, the data is saved to the disk.
+
 ``` r
-chat <- chat_future(chat_openai, 
-                    system_prompt = "Reply concisely, one sentence")
+chat <- chat_future(openai)
 ```
 
-#### Performance vs Safety Trade-Off
-
-When using parallel processing with `chat_future`, there's a trade-off between safety and performance:
-
--   **Maximum Safety**: Using a smaller `chunk_size` ensures progress is saved to the disk more frequently, allowing recovery if something goes wrong (default: number of prompts / 10)
--   **Maximum Performance**: Setting `chunk_size` equal to the number of prompts results in a 4-5x faster processing speed but progress will not be saved to the disk until all chats are processed
+For maximum performance, set `chunk_size` to the number of prompts (\~4-5x faster). However, data will not be saved to the disk until all chats are processed.
 
 ``` r
-chat$batch(prompts, chunk_size = length(prompts))
+batch <- chat$batch(
+  prompts, 
+  chunk_size = length(prompts)
+)
 ```
 
 ## Features
@@ -135,9 +145,9 @@ prompts <- list(
   "What time is it in New York?"
 )
 
-result <- chat$batch(prompts)
+batch <- chat$batch(prompts)
 
-result$texts()
+batch$texts()
 #> [[1]]
 #> [1] "The current time in Chicago is 9:29 AM CDT."
 #> 
@@ -163,9 +173,9 @@ prompts <- list(
   "R's object-oriented system is confusing, inconsistent, and painful to use."
 )
 
-result <- chat$batch(prompts, type_spec = type_sentiment)
+batch <- chat$batch(prompts, type_spec = type_sentiment)
 
-result$texts()
+batch$texts()
 #> [[1]]
 #> $positive_score
 #> [1] 0.95
@@ -178,12 +188,14 @@ result$texts()
 #> ...
 ```
 
-To iteratively refine structured data extractions, implement LLM-as-a-judge into the chat turns using the `judgements` parameter (increases token use):
+#### Self-evaluation
+
+Self-evaluation prompts the chat model to improve the initial or prior structured data extraction using the `eval_rounds` parameter (increases token use). You can set the number of self-evaluation rounds but be mindful of the cost and risk of diminishing returns.
 
 ``` r
-result <- chat$batch(prompts, type_spec = type_sentiment, judgements = 1)
+batch <- chat$batch(prompts, type_spec = type_sentiment, eval_rounds = 1)
 
-result$texts()
+batch$texts()
 #> [[1]]
 #> [[1]]$positive_score
 #> [1] 0.95
@@ -196,63 +208,30 @@ result$texts()
 #> ...
 ```
 
-### State Management
+### Progress Tracking and Recovery
 
-Batch processing automatically saves progress to an `.rds` file on the disk and allows you to resume interrupted operations:
+Batch processing state and progress is saved to a path to an `.rds` file on the disk and allows you to resume interrupted operations:
 
 ``` r
-result <- chat$batch(prompts, state_path = "chat_state.rds")
+batch <- chat$batch(prompts, state_path = "chat_state.rds")
+batch$progress()
 ```
 
 If `state_path` is not defined, a temporary file will be created by default.
 
-### Output Control
-
-Control verbosity with the `echo` parameter (sequential only):
-
--   `"none"`: Silent operation with progress bar
--   `"text"`: Show chat responses only
--   `"all"`: Show both prompts and responses
-
-``` r
-chat <- chat_sequential(
-  chat_openai, 
-  echo = "none"
-)
-```
-
 ### Automatic Retry
 
-Automatically retry failed requests with exponential backoff, which serves as a wide guardrail against errors while `ellmer` and `httr2` serve as a narrow guardrail against specific API limits:
+Automatically retry failed requests with exponential backoff, which is useful to allow batch processing to persist for transient errors such as exceeding rate limits and temporary server errors.
+
+Most chat provider functions in `ellmer` do retry at least one time by default, but there is no user-defined control over the retry strategy.
 
 ``` r
-chat <- chat_sequential(
-  chat_openai,         # ellmer chat model
+batch <- chat$batch(
+  prompts = prompts,   # list or vector of prompts
   max_retries = 3,     # maximum retry attempts
   initial_delay = 20,  # initial delay in seconds
   max_delay = 80,      # maximum delay between retries
   backoff_factor = 2   # multiply delay by this factor after each retry
-)
-```
-
-If a request fails, the code will:
-
-1.  Wait for the `initial_delay`
-2.  Retry the request
-3.  If it fails again, wait for (delay × `backoff_factor`)
-4.  Continue until success or `max_retries` is reached
-
-If the code detects an authorization or API key issue, it will stop immediately.
-
-### Timeout Handling
-
-The timeout parameter specifies the maximum time to wait for a response from the chat model for each prompt. However, this parameter is still limited by the timeouts propagated up from the chat model functions.
-
-``` r
-chat <- chat_future(
-  chat_openai,
-  system_prompt = "Reply concisely, one sentence"
-  timeout = 60
 )
 ```
 
@@ -261,13 +240,27 @@ chat <- chat_future(
 Toggle sound notifications on batch completion, interruption, and error:
 
 ``` r
-chat <- chat_sequential(
-  chat_openai,
-  beep = TRUE
-)
+batch <- chat$batch(prompts, beep = TRUE)
 ```
 
-### Results Methods
+### Echoing
+
+By default, the chat `echo` is set to `FALSE` to show a progress bar. However, you can still configure `echo` by first setting `progress` to `FALSE`:
+
+``` r
+batch <- chat$batch(prompts, progress = FALSE, echo = "all")
+#> > What is R?
+#> < R is a programming language and software environment used for statistical computing,
+#> < data analysis, and graphical representation.
+#> < 
+#> > Explain base R versus tidyverse
+#> < Base R refers to the functions and paradigms built into the R language, while
+#> < tidyverse is a collection of R packages designed for data science, emphasizing 
+#> < a more consistent and human-readable syntax for data manipulation.
+#> < 
+```
+
+### Methods
 
 -   `progress()`: Returns processing status
 -   `texts()`: Returns response texts in the same format as the input prompts (i.e., a list if prompts were provided as a list, or a character vector if prompts were provided as a vector). When a type specification is provided, it returns structured data instead of plain text.
@@ -275,4 +268,5 @@ chat <- chat_sequential(
 
 ## Further Reading
 
--   [Using Ellmer Chat Models](https://dylanpieper.github.io/hellmer/articles/using-chat-models.html): Are you wondering if you can use `chat_openai()` as a user-defined object instead of the `chat_openai` function? Of course you can! Learn more about the two methods and the default interface.
+-   [Using Ellmer Chat Models](https://dylanpieper.github.io/hellmer/articles/using-chat-models.html) (Vignette)
+-   [Batch and Compare the Similarity of LLM Responses in R](https://dylanpieper.github.io/blog/posts/batch-and-compare-LLM-responses.html) (Blog Post)
